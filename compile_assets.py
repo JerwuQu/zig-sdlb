@@ -48,6 +48,7 @@ class Atlas:
 
 atlases = []
 images = []
+sheets = []
 anims = []
 sounds = [] # NOTE: sounds are just raw data with sugar
 
@@ -68,8 +69,31 @@ def atlas_pack(img):
 for filename in filenames:
 	name, ext = os.path.splitext(os.path.basename(filename))
 	if ext == '.png':
-		with Image.open(filename) as img:
-			images.append((name, atlas_pack(img)))
+		namesplit = name.split('@', 2)
+
+		# Spritesheet
+		if len(namesplit) == 2:
+			counts = namesplit[1].split(',', 2)
+			if len(counts) != 2:
+				print('invalid spritesheet definition')
+				exit(1)
+
+			x_count = int(counts[0])
+			y_count = int(counts[1])
+			sheet_images = []
+			with Image.open(filename) as img:
+				pw = img.width / x_count
+				ph = img.height / y_count
+				for y in range(y_count):
+					for x in range(x_count):
+						sheet_images.append(atlas_pack(img.crop((x * pw, y * ph, (x + 1) * pw, (y + 1) * ph))))
+
+			sheets.append((namesplit[0], sheet_images))
+
+		# Regular image
+		else:
+			with Image.open(filename) as img:
+				images.append((name, atlas_pack(img)))
 
 	elif ext == '.aseprite':
 		tmppng = tempfile.mktemp(suffix='.png')
@@ -109,6 +133,11 @@ output += struct.pack('>H', len(images))
 for image in images:
 	output += str_bytes(image[0])
 
+# Spritesheet names
+output += struct.pack('>H', len(sheets))
+for sheet in sheets:
+	output += str_bytes(sheet[0])
+
 # Anim names
 output += struct.pack('>H', len(anims))
 for anim in anims:
@@ -129,6 +158,12 @@ for atlas in atlases:
 # Image rects
 for image in images:
 	compressed += sprite_bytes(image[1])
+
+# Spritesheets
+for sheet in sheets:
+	compressed += struct.pack('>H', len(sheet[1]))
+	for sprite in sheet[1]:
+		compressed += sprite_bytes(sprite)
 
 # Anim data
 for anim in anims:

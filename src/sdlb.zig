@@ -351,6 +351,19 @@ pub const Game = struct {
             byteI += 10;
         }
 
+        // Load spritesheets
+        inline for (ass.sheetNames) |name| {
+            const spriteCount = std.mem.readIntSliceBig(u16, assZ[byteI..byteI + 2]);
+            byteI += 2;
+            var sprites = try self.alloc.alloc(Sprite, spriteCount);
+            var spriteI: u16 = 0;
+            while(spriteI < spriteCount) : (spriteI += 1) {
+                sprites[spriteI] = Sprite.readFromBinary(assets.atlases, assZ[byteI..byteI + 10]);
+                byteI += 10;
+            }
+            @field(assets.sheets, name) = sprites;
+        }
+
         // Load animations
         inline for (ass.animNames) |name| {
             const frameCount = std.mem.readIntSliceBig(u16, assZ[byteI..byteI + 2]);
@@ -380,6 +393,7 @@ const AssetData = struct {
     const Metadata = struct {
         atlasCount: u16,
         imageNames: []const []const u8,
+        sheetNames: []const []const u8,
         animNames: []const []const u8,
         soundNames: []const []const u8,
         decompressedDataSize: u32,
@@ -403,6 +417,7 @@ const AssetData = struct {
 
             var byteI: usize = 2;
             const imageNames = parseNames(data, &byteI);
+            const sheetNames = parseNames(data, &byteI);
             const animNames = parseNames(data, &byteI);
             const soundNames = parseNames(data, &byteI);
 
@@ -413,6 +428,7 @@ const AssetData = struct {
             return Metadata{
                 .atlasCount = atlasCount,
                 .imageNames = imageNames,
+                .sheetNames = sheetNames,
                 .animNames = animNames,
                 .soundNames = soundNames,
                 .compressedData = data[byteI..byteI + compressedDataSize],
@@ -427,6 +443,7 @@ const AssetData = struct {
             alloc: *std.mem.Allocator,
             atlases: []Texture,
             images: makeStruct(ass.imageNames, Sprite, null),
+            sheets: makeStruct(ass.sheetNames, []const Sprite, null),
             anims: makeStruct(ass.animNames, Anim, null),
             sounds: makeStruct(ass.soundNames, []const u8, null),
 
@@ -435,6 +452,9 @@ const AssetData = struct {
                     self.atlases[i].deinit();
                 }
                 self.alloc.free(self.atlases);
+                inline for (ass.sheetNames) |name| {
+                    self.alloc.free(@field(self.sheets, name));
+                }
                 inline for (ass.animNames) |name| {
                     self.alloc.free(@field(self.anims, name).frames);
                 }

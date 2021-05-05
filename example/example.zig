@@ -56,8 +56,9 @@ pub fn main() !void {
 
         game.clear(sdlb.RGB(0, 0, 0));
         game.drawRect(sdlb.RGB(255, 0, 0), .{ .w = 32, .h = 32 });
-        game.drawSprite(assets.images.cooldude, dudeX, dudeY, 1, .{});
+        game.drawSprite(assets.sheets.specks[@divTrunc(game.tick, 1000) % assets.sheets.specks.len], 8, 8, 4, .{});
         game.drawAnim(&letterAnim, 34, 10, 1, .{});
+        game.drawSprite(assets.images.cooldude, dudeX, dudeY, 1, .{});
         game.render(sdlb.RGB(100, 100, 100));
         // std.log.info("FPS: {}", .{ game.getFPS() });
     }

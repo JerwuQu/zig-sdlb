@@ -10,7 +10,7 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 
 - Automatic integer scaling of pixels, with borders to maintain aspect ratio
 - Script for converting assets for embedding into the executable
-- Easy usage of sprites (png), animations (aseprite), and sounds (opus)
+- Easy usage of images (png), spritesheets (png), animations (aseprite), and sounds (opus)
 - Very basic keymap config to allow users to reconfigure default bindings
 
 ### Not in scope
@@ -19,10 +19,6 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 - Savedata and configs: you can use any serialisation you want
 - ECS or alternatives: there are many ways to do this and such a decision shouldn't be made in this lib
 - Assets in a file instead of embedded in executable: asset data is compressed and should be pretty compact for most small games
-
-### TBD
-
-- Fonts: support for bitmap fonts would be nice
 
 ## Dependencies
 
