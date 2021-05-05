@@ -7,7 +7,7 @@ const BIT_DEPTH = 16;
 const DEVICE_SAMPLES = 4096; // high enough not to crackle, low enough to not have much delay
 
 pub const OpusFile = struct {
-    pub const Error = error {
+    pub const Error = error{
         OpenMemoryFailed,
         ReadFailed,
         EndOfFile,
@@ -42,7 +42,7 @@ pub const OpusFile = struct {
 };
 
 pub const AudioDevice = struct {
-    pub const Error = error {
+    pub const Error = error{
         DeviceOpenFailed,
     };
 

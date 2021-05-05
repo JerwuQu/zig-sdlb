@@ -339,26 +339,26 @@ pub const Game = struct {
         assets.atlases = try self.alloc.alloc(Texture, ass.atlasCount);
         var atlasI: usize = 0;
         while (atlasI < ass.atlasCount) : (atlasI += 1) {
-            const w = std.mem.readIntSliceBig(u16, assZ[byteI..byteI + 2]);
-            const h = std.mem.readIntSliceBig(u16, assZ[byteI + 2..byteI + 4]);
-            assets.atlases[atlasI] = try self.loadTextureFromRGBA(assZ[byteI + 4..byteI + @as(usize, w) * @as(usize, h) * 4 + 4], w, h);
+            const w = std.mem.readIntSliceBig(u16, assZ[byteI .. byteI + 2]);
+            const h = std.mem.readIntSliceBig(u16, assZ[byteI + 2 .. byteI + 4]);
+            assets.atlases[atlasI] = try self.loadTextureFromRGBA(assZ[byteI + 4 .. byteI + @as(usize, w) * @as(usize, h) * 4 + 4], w, h);
             byteI += @as(usize, w) * @as(usize, h) * 4 + 4;
         }
 
         // Load images
         inline for (ass.imageNames) |name| {
-            @field(assets.images, name) = Sprite.readFromBinary(assets.atlases, assZ[byteI..byteI + 10]);
+            @field(assets.images, name) = Sprite.readFromBinary(assets.atlases, assZ[byteI .. byteI + 10]);
             byteI += 10;
         }
 
         // Load spritesheets
         inline for (ass.sheetNames) |name| {
-            const spriteCount = std.mem.readIntSliceBig(u16, assZ[byteI..byteI + 2]);
+            const spriteCount = std.mem.readIntSliceBig(u16, assZ[byteI .. byteI + 2]);
             byteI += 2;
             var sprites = try self.alloc.alloc(Sprite, spriteCount);
             var spriteI: u16 = 0;
-            while(spriteI < spriteCount) : (spriteI += 1) {
-                sprites[spriteI] = Sprite.readFromBinary(assets.atlases, assZ[byteI..byteI + 10]);
+            while (spriteI < spriteCount) : (spriteI += 1) {
+                sprites[spriteI] = Sprite.readFromBinary(assets.atlases, assZ[byteI .. byteI + 10]);
                 byteI += 10;
             }
             @field(assets.sheets, name) = sprites;
@@ -366,13 +366,13 @@ pub const Game = struct {
 
         // Load animations
         inline for (ass.animNames) |name| {
-            const frameCount = std.mem.readIntSliceBig(u16, assZ[byteI..byteI + 2]);
+            const frameCount = std.mem.readIntSliceBig(u16, assZ[byteI .. byteI + 2]);
             byteI += 2;
             var frames = try self.alloc.alloc(Anim.Frame, frameCount);
             var frameI: u16 = 0;
-            while(frameI < frameCount) : (frameI += 1) {
-                frames[frameI].sprite = Sprite.readFromBinary(assets.atlases, assZ[byteI..byteI + 10]);
-                frames[frameI].duration = std.mem.readIntSliceBig(u16, assZ[byteI + 10..byteI + 12]);
+            while (frameI < frameCount) : (frameI += 1) {
+                frames[frameI].sprite = Sprite.readFromBinary(assets.atlases, assZ[byteI .. byteI + 10]);
+                frames[frameI].duration = std.mem.readIntSliceBig(u16, assZ[byteI + 10 .. byteI + 12]);
                 byteI += 12;
             }
             @field(assets.anims, name).frames = frames;
@@ -380,8 +380,8 @@ pub const Game = struct {
 
         // Load sounds
         inline for (ass.soundNames) |name| {
-            const sz = std.mem.readIntSliceBig(u32, assZ[byteI..byteI + 4]);
-            @field(assets.sounds, name) = try self.alloc.dupe(u8, assZ[byteI + 4..byteI + 4 + sz]);
+            const sz = std.mem.readIntSliceBig(u32, assZ[byteI .. byteI + 4]);
+            @field(assets.sounds, name) = try self.alloc.dupe(u8, assZ[byteI + 4 .. byteI + 4 + sz]);
             byteI += sz + 4;
         }
 
@@ -400,13 +400,13 @@ const AssetData = struct {
         compressedData: []const u8,
 
         fn parseNames(comptime data: []const u8, byteI: *usize) []const []const u8 {
-            const count = std.mem.readIntSliceBig(u16, data[byteI.*..byteI.* + 2]);
+            const count = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
             byteI.* += 2;
             var names: []const []const u8 = &.{};
             var i: usize = 0;
             while (i < count) : (i += 1) {
-                const strlen = std.mem.readIntSliceBig(u16, data[byteI.*..byteI.* + 2]);
-                names = names ++ [1][]const u8{ data[byteI.* + 2..byteI.* + 2 + strlen] };
+                const strlen = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
+                names = names ++ [1][]const u8{data[byteI.* + 2 .. byteI.* + 2 + strlen]};
                 byteI.* += strlen + 2;
             }
             return names;
@@ -421,8 +421,8 @@ const AssetData = struct {
             const animNames = parseNames(data, &byteI);
             const soundNames = parseNames(data, &byteI);
 
-            const decompressedDataSize = std.mem.readIntSliceBig(u32, data[byteI..byteI + 4]);
-            const compressedDataSize = std.mem.readIntSliceBig(u32, data[byteI + 4..byteI + 8]);
+            const decompressedDataSize = std.mem.readIntSliceBig(u32, data[byteI .. byteI + 4]);
+            const compressedDataSize = std.mem.readIntSliceBig(u32, data[byteI + 4 .. byteI + 8]);
             byteI += 8;
 
             return Metadata{
@@ -431,7 +431,7 @@ const AssetData = struct {
                 .sheetNames = sheetNames,
                 .animNames = animNames,
                 .soundNames = soundNames,
-                .compressedData = data[byteI..byteI + compressedDataSize],
+                .compressedData = data[byteI .. byteI + compressedDataSize],
                 .decompressedDataSize = decompressedDataSize,
             };
         }
@@ -570,7 +570,7 @@ pub fn saveKeyConfig(filename: []const u8, keys: anytype) !void {
     defer f.close();
     var writer = f.writer();
     inline for (comptime std.meta.fieldNames(@TypeOf(keys))) |name| {
-        try std.fmt.format(writer, "{s}:{s}\n", .{name, c.SDL_GetKeyName(@intCast(i32, @field(keys, name)))});
+        try std.fmt.format(writer, "{s}:{s}\n", .{ name, c.SDL_GetKeyName(@intCast(i32, @field(keys, name))) });
     }
 }
 

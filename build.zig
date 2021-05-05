@@ -14,7 +14,7 @@ pub fn build(b: *std.build.Builder) void {
     // Example
     const example = b.addExecutable("example", "example/example.zig");
     if (!(b.option(bool, "skip-asset-make", "Don't build assets") orelse false)) {
-        const makeAssets = b.addSystemCommand(&.{"make", "-C", "example/assets"});
+        const makeAssets = b.addSystemCommand(&.{ "make", "-C", "example/assets" });
         example.step.dependOn(&makeAssets.step);
     }
     example.setTarget(target);
