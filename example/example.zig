@@ -21,14 +21,15 @@ pub fn main() !void {
 
     var letterAnim = sdlb.AnimState{ .anim = &assets.anims.letters_MainAnim };
 
-    const keybinds = .{
+    const keybinds = sdlb.loadKeyConfig("example.keymap", .{
         .left = c.SDLK_a,
         .right = c.SDLK_d,
         .up = c.SDLK_w,
         .down = c.SDLK_s,
         .playSound = c.SDLK_SPACE,
-    };
-    const KeyStates = sdlb.makeKeyStates(keybinds);
+    });
+    sdlb.saveKeyConfig("example.keymap", keybinds) catch {};
+    const KeyStates = sdlb.makeKeyStates(@TypeOf(keybinds));
     var keysHeld = KeyStates{};
     var keysPressed = KeyStates{};
 

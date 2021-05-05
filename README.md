@@ -11,6 +11,7 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 - Automatic integer scaling of pixels, with borders to maintain aspect ratio
 - Script for converting assets for embedding into the executable
 - Easy usage of sprites (png), animations (aseprite), and sounds (opus)
+- Very basic keymap config to allow users to reconfigure default bindings
 
 ### Not in scope
 
@@ -22,7 +23,6 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 ### TBD
 
 - Fonts: support for bitmap fonts would be nice
-- Keymap config (i.e. `game_name.keymap`): would be needed for pretty much every game regardless, even when some other game config isn't
 
 ## Dependencies
 

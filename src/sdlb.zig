@@ -493,8 +493,65 @@ pub const AnimState = struct {
 };
 
 /// Convenience function for not having to create the KeyStates struct yourself
-pub fn makeKeyStates(comptime keybinds: anytype) type {
-    return makeStruct(std.meta.fieldNames(@TypeOf(keybinds)), bool, false);
+pub fn makeKeyStates(comptime keybindContainerType: type) type {
+    // TODO: verify that all value types are Keycode
+    return makeStruct(std.meta.fieldNames(keybindContainerType), bool, false);
+}
+
+/// Create a KeyMap struct out of defaults, loading config into it for values that exist
+pub fn loadKeyConfig(filename: []const u8, comptime defaults: anytype) keymapFromDefaults(defaults) {
+    var out: keymapFromDefaults(defaults) = defaults;
+    var f = std.fs.cwd().openFile(filename, .{}) catch return out;
+    defer f.close();
+    var reader = f.reader();
+    var i: usize = 0;
+    var line: [1024]u8 = undefined;
+    while (true) {
+        const char = reader.readByte() catch null;
+        if (char == null or char.? == '\n') {
+            if (i > 0) {
+                line[i] = 0; // Null-term
+                var split = std.mem.split(line[0..i], ":");
+                i = 0;
+                const fieldName = split.next() orelse continue;
+                const keyName = split.rest();
+                const kc = c.SDL_GetKeyFromName(keyName.ptr);
+                if (kc == c.SDLK_UNKNOWN) {
+                    std.log.warn("unknown key '{s}', using default", .{std.mem.spanZ(keyName)});
+                    continue;
+                }
+                inline for (comptime std.meta.fieldNames(@TypeOf(out))) |name| {
+                    if (std.mem.eql(u8, name, fieldName)) {
+                        @field(out, name) = @intCast(Keycode, kc);
+                    }
+                }
+            }
+            if (char == null) {
+                break;
+            }
+        } else if (char.? != ' ' and char.? != '\r') {
+            line[i] = char.?;
+            i += 1;
+            if (i == line.len - 1) {
+                std.log.warn("key config lines too long, aborting read", .{});
+                return out;
+            }
+        }
+    }
+    return out;
+}
+
+fn keymapFromDefaults(comptime defaults: anytype) type {
+    return makeStruct(std.meta.fieldNames(@TypeOf(defaults)), Keycode, @intCast(Keycode, c.SDLK_UNKNOWN));
+}
+
+pub fn saveKeyConfig(filename: []const u8, keys: anytype) !void {
+    var f = try std.fs.cwd().createFile(filename, .{});
+    defer f.close();
+    var writer = f.writer();
+    inline for (comptime std.meta.fieldNames(@TypeOf(keys))) |name| {
+        try std.fmt.format(writer, "{s}:{s}\n", .{name, c.SDL_GetKeyName(@intCast(i32, @field(keys, name)))});
+    }
 }
 
 fn makeStruct(comptime names: []const []const u8, comptime valueType: type, comptime defaultValue: anytype) type {

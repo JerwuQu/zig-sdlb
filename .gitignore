@@ -1,3 +1,4 @@
 zig-cache/
 mingw32/
 mingw64/
+*.keymap
