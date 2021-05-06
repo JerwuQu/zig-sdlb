@@ -4,7 +4,7 @@ const c = @import("./c.zig").c;
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
 const BIT_DEPTH = 16;
-const DEVICE_SAMPLES = 4096; // high enough not to crackle, low enough to not have much delay
+const DEVICE_SAMPLES = 1024; // high enough not to crackle, low enough to not have much delay
 
 pub const OpusFile = struct {
     pub const Error = error{
@@ -56,12 +56,14 @@ pub const AudioDevice = struct {
         file: OpusFile,
         opt: PlayOptions,
         deletePending: bool = false,
+        sampleDelay: usize = 0, // skip N samples
 
         /// Will arithmetically add samples to the output buffer
         pub fn addSamples(self: *PlayBuffer, bufOut: []f32) !void {
             var buf: [DEVICE_SAMPLES * CHANNELS]f32 = undefined;
 
-            var writtenI: usize = 0;
+            var writtenI: usize = std.math.min(buf.len, self.sampleDelay);
+            self.sampleDelay -= writtenI;
             while (writtenI != bufOut.len) {
                 // Decode
                 const want = std.math.min(buf.len, bufOut.len - writtenI);
@@ -94,12 +96,14 @@ pub const AudioDevice = struct {
     playbackIncrement: usize = 0,
     device: c.SDL_AudioDeviceID,
     sounds: PlayBufferMap,
+    lastSampleCallTick: u32,
 
     pub fn openDefault(alloc: *std.mem.Allocator) (Error || std.mem.Allocator.Error)!*AudioDevice {
         var audioDevice = try alloc.create(AudioDevice);
         audioDevice.alloc = alloc;
         audioDevice.playbackIncrement = 0;
         audioDevice.sounds = PlayBufferMap.init(alloc);
+        audioDevice.lastSampleCallTick = c.SDL_GetTicks();
 
         const audioSpec = c.SDL_AudioSpec{
             .freq = SAMPLE_RATE,
@@ -126,12 +130,14 @@ pub const AudioDevice = struct {
         self.alloc.destroy(self);
     }
     pub fn play(self: *AudioDevice, filedata: []const u8, options: PlayOptions) !PlayHandle {
+        const sampleDelay = @divTrunc((c.SDL_GetTicks() - self.lastSampleCallTick) * SAMPLE_RATE * CHANNELS, 1000);
         var file = try OpusFile.load(filedata);
         self.playbackIncrement += 1;
         c.SDL_LockAudioDevice(self.device);
         try self.sounds.put(self.playbackIncrement, PlayBuffer{
             .file = file,
             .opt = options,
+            .sampleDelay = sampleDelay,
         });
         c.SDL_UnlockAudioDevice(self.device);
         return self.playbackIncrement;
@@ -149,6 +155,7 @@ pub const AudioDevice = struct {
     fn sdlAudioCallback(userdata: ?*c_void, stream: [*c]u8, len: c_int) callconv(.C) void {
         const self = @ptrCast(*AudioDevice, @alignCast(@alignOf(*AudioDevice), userdata.?));
         var buf = @ptrCast([*c]f32, @alignCast(@alignOf(f32), stream))[0..@intCast(usize, @divTrunc(len, 4))];
+        self.lastSampleCallTick = c.SDL_GetTicks();
 
         // Mix
         std.mem.set(f32, buf, 0);
