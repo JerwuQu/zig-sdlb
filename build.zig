@@ -1,18 +1,11 @@
 const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
-    const mode = b.standardReleaseOptions();
     const winCompile = b.option(bool, "windows", "Cross-compile to Windows") orelse false;
     const target = if (winCompile) std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu } else b.standardTargetOptions(.{});
 
-    // Main SDLB tests
-    var tests = b.addTest("src/sdlb.zig");
-    tests.setBuildMode(mode);
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&tests.step);
-
     const exOpt = ExOpt{
-        .mode = mode,
+        .mode = b.standardReleaseOptions(),
         .target = target,
         .winCompile = winCompile,
         .skipAssetMake = b.option(bool, "skip-asset-make", "Don't build assets") orelse false,
