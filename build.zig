@@ -11,17 +11,36 @@ pub fn build(b: *std.build.Builder) void {
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&tests.step);
 
+    const exOpt = ExOpt{
+        .mode = mode,
+        .target = target,
+        .winCompile = winCompile,
+        .skipAssetMake = b.option(bool, "skip-asset-make", "Don't build assets") orelse false,
+    };
+
     // Example
-    const example = b.addExecutable("example", "example/example.zig");
-    if (!(b.option(bool, "skip-asset-make", "Don't build assets") orelse false)) {
-        const makeAssets = b.addSystemCommand(&.{ "make", "-C", "example/assets" });
+    buildExample(b, exOpt, "general");
+    buildExample(b, exOpt, "bitmap-font");
+}
+
+const ExOpt = struct {
+    mode: std.builtin.Mode,
+    target: std.zig.CrossTarget,
+    winCompile: bool,
+    skipAssetMake: bool,
+};
+
+fn buildExample(b: *std.build.Builder, opt: ExOpt, comptime name: []const u8) void {
+    const example = b.addExecutable("example-" ++ name, "examples/" ++ name ++ ".zig");
+    if (!opt.skipAssetMake) {
+        const makeAssets = b.addSystemCommand(&.{ "make", "-C", "examples/assets" });
         example.step.dependOn(&makeAssets.step);
     }
-    example.setTarget(target);
-    example.setBuildMode(mode);
+    example.setTarget(opt.target);
+    example.setBuildMode(opt.mode);
     example.addPackage(.{ .name = "sdlb", .path = "src/sdlb.zig" });
     example.linkLibC();
-    if (winCompile) {
+    if (opt.winCompile) {
         // Windows libs required for SDL2
         example.linkSystemLibrary("gdi32");
         example.linkSystemLibrary("winmm");
@@ -50,6 +69,6 @@ pub fn build(b: *std.build.Builder) void {
 
     const run_ex_cmd = example.run();
     run_ex_cmd.step.dependOn(&example.install_step.?.step);
-    const run_ex_step = b.step("example", "Run the example");
+    const run_ex_step = b.step("example-" ++ name, "Run the '" ++ name ++ "' example");
     run_ex_step.dependOn(&run_ex_cmd.step);
 }

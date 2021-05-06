@@ -34,6 +34,7 @@ pub const Game = struct {
     const DrawOptions = struct {
         flipX: bool = false,
         flipY: bool = false,
+        color: Color = RGB(255, 255, 255),
     };
 
     alloc: *std.mem.Allocator,
@@ -196,6 +197,8 @@ pub const Game = struct {
         _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x + w, y - outline, outline, h + outline * 2).toSDL());
     }
     pub fn drawSprite(self: *Game, sprite: Sprite, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
+        _ = c.SDL_SetTextureAlphaMod(sprite.atlas.tx, options.color.a);
+        _ = c.SDL_SetTextureColorMod(sprite.atlas.tx, options.color.r, options.color.g, options.color.b);
         // TODO: error on non-perfect int scaling
         const flip = (if (options.flipX) c.SDL_FLIP_HORIZONTAL else 0) | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else 0);
         const rect = Rect{
@@ -321,9 +324,9 @@ pub const Game = struct {
     }
 
     // -- Asset methods --
-    pub fn loadAssets(self: *Game, comptime assetBin: []const u8) !AssetData.makeContainerType(assetBin) {
-        const ass = comptime AssetData.Metadata.parse(assetBin);
-        var assets: AssetData.makeContainerType(assetBin) = undefined;
+    pub fn loadAssets(self: *Game, comptime assetBin: []const u8) !assetsType(assetBin) {
+        const ass = comptime AssetMetadata.parse(assetBin);
+        var assets: assetsType(assetBin) = undefined;
         assets.alloc = self.alloc;
 
         // Decompress asset data
@@ -389,83 +392,81 @@ pub const Game = struct {
     }
 };
 
-const AssetData = struct {
-    const Metadata = struct {
-        atlasCount: u16,
-        imageNames: []const []const u8,
-        sheetNames: []const []const u8,
-        animNames: []const []const u8,
-        soundNames: []const []const u8,
-        decompressedDataSize: u32,
-        compressedData: []const u8,
+const AssetMetadata = struct {
+    atlasCount: u16,
+    imageNames: []const []const u8,
+    sheetNames: []const []const u8,
+    animNames: []const []const u8,
+    soundNames: []const []const u8,
+    decompressedDataSize: u32,
+    compressedData: []const u8,
 
-        fn parseNames(comptime data: []const u8, byteI: *usize) []const []const u8 {
-            const count = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
-            byteI.* += 2;
-            var names: []const []const u8 = &.{};
-            var i: usize = 0;
-            while (i < count) : (i += 1) {
-                const strlen = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
-                names = names ++ [1][]const u8{data[byteI.* + 2 .. byteI.* + 2 + strlen]};
-                byteI.* += strlen + 2;
-            }
-            return names;
+    fn parseNames(comptime data: []const u8, byteI: *usize) []const []const u8 {
+        const count = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
+        byteI.* += 2;
+        var names: []const []const u8 = &.{};
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const strlen = std.mem.readIntSliceBig(u16, data[byteI.* .. byteI.* + 2]);
+            names = names ++ [1][]const u8{data[byteI.* + 2 .. byteI.* + 2 + strlen]};
+            byteI.* += strlen + 2;
         }
+        return names;
+    }
 
-        fn parse(comptime data: []const u8) Metadata {
-            const atlasCount = std.mem.readIntSliceBig(u16, data[0..2]);
+    fn parse(comptime data: []const u8) AssetMetadata {
+        const atlasCount = std.mem.readIntSliceBig(u16, data[0..2]);
 
-            var byteI: usize = 2;
-            const imageNames = parseNames(data, &byteI);
-            const sheetNames = parseNames(data, &byteI);
-            const animNames = parseNames(data, &byteI);
-            const soundNames = parseNames(data, &byteI);
+        var byteI: usize = 2;
+        const imageNames = parseNames(data, &byteI);
+        const sheetNames = parseNames(data, &byteI);
+        const animNames = parseNames(data, &byteI);
+        const soundNames = parseNames(data, &byteI);
 
-            const decompressedDataSize = std.mem.readIntSliceBig(u32, data[byteI .. byteI + 4]);
-            const compressedDataSize = std.mem.readIntSliceBig(u32, data[byteI + 4 .. byteI + 8]);
-            byteI += 8;
+        const decompressedDataSize = std.mem.readIntSliceBig(u32, data[byteI .. byteI + 4]);
+        const compressedDataSize = std.mem.readIntSliceBig(u32, data[byteI + 4 .. byteI + 8]);
+        byteI += 8;
 
-            return Metadata{
-                .atlasCount = atlasCount,
-                .imageNames = imageNames,
-                .sheetNames = sheetNames,
-                .animNames = animNames,
-                .soundNames = soundNames,
-                .compressedData = data[byteI .. byteI + compressedDataSize],
-                .decompressedDataSize = decompressedDataSize,
-            };
-        }
-    };
-
-    fn makeContainerType(comptime assetBin: []const u8) type {
-        const ass = AssetData.Metadata.parse(assetBin);
-        return struct {
-            alloc: *std.mem.Allocator,
-            atlases: []Texture,
-            images: makeStruct(ass.imageNames, Sprite, null),
-            sheets: makeStruct(ass.sheetNames, []const Sprite, null),
-            anims: makeStruct(ass.animNames, Anim, null),
-            sounds: makeStruct(ass.soundNames, []const u8, null),
-
-            pub fn deinit(self: *@This()) void {
-                for (self.atlases) |_, i| {
-                    self.atlases[i].deinit();
-                }
-                self.alloc.free(self.atlases);
-                inline for (ass.sheetNames) |name| {
-                    self.alloc.free(@field(self.sheets, name));
-                }
-                inline for (ass.animNames) |name| {
-                    self.alloc.free(@field(self.anims, name).frames);
-                }
-                inline for (ass.soundNames) |name| {
-                    self.alloc.free(@field(self.sounds, name));
-                }
-                self.* = undefined;
-            }
+        return AssetMetadata{
+            .atlasCount = atlasCount,
+            .imageNames = imageNames,
+            .sheetNames = sheetNames,
+            .animNames = animNames,
+            .soundNames = soundNames,
+            .compressedData = data[byteI .. byteI + compressedDataSize],
+            .decompressedDataSize = decompressedDataSize,
         };
     }
 };
+
+pub fn assetsType(comptime assetBin: []const u8) type {
+    const ass = AssetMetadata.parse(assetBin);
+    return struct {
+        alloc: *std.mem.Allocator,
+        atlases: []Texture,
+        images: makeStruct(ass.imageNames, Sprite, null),
+        sheets: makeStruct(ass.sheetNames, []const Sprite, null),
+        anims: makeStruct(ass.animNames, Anim, null),
+        sounds: makeStruct(ass.soundNames, []const u8, null),
+
+        pub fn deinit(self: *@This()) void {
+            for (self.atlases) |_, i| {
+                self.atlases[i].deinit();
+            }
+            self.alloc.free(self.atlases);
+            inline for (ass.sheetNames) |name| {
+                self.alloc.free(@field(self.sheets, name));
+            }
+            inline for (ass.animNames) |name| {
+                self.alloc.free(@field(self.anims, name).frames);
+            }
+            inline for (ass.soundNames) |name| {
+                self.alloc.free(@field(self.sounds, name));
+            }
+            self.* = undefined;
+        }
+    };
+}
 
 const Texture = struct {
     tx: *c.SDL_Texture,
