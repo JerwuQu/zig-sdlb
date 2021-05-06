@@ -24,9 +24,11 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 
 ### zig-sdlb
 
+Pay attention to which of these need a license note in your game!
+
 - SDL2
 - zstd
-- opusfile (and its dependencies)
+- opusfile (and its dependencies: ogg and opus)
 
 ### Asset build
 
