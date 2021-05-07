@@ -14,6 +14,7 @@ pub fn build(b: *std.build.Builder) void {
     // Example
     buildExample(b, exOpt, "general");
     buildExample(b, exOpt, "bitmap-font");
+    buildExample(b, exOpt, "pixel-lighting");
 }
 
 const ExOpt = struct {

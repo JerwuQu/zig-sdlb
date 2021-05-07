@@ -1,5 +1,6 @@
 const std = @import("std");
 pub const c = @import("./c.zig").c;
+pub const units = @import("./units.zig");
 pub usingnamespace @import("./units.zig");
 pub usingnamespace @import("./audio.zig");
 
@@ -38,8 +39,8 @@ pub const Game = struct {
     };
 
     alloc: *std.mem.Allocator,
-    gameW: UUnit,
-    gameH: UUnit,
+    w: UUnit, // Game width
+    h: UUnit, // Game height
     winW: UUnit,
     winH: UUnit,
     scale: UUnit,
@@ -96,8 +97,8 @@ pub const Game = struct {
 
         return Game{
             .alloc = alloc,
-            .gameW = w,
-            .gameH = h,
+            .w = w,
+            .h = h,
             .winW = winW,
             .winH = winH,
             .scale = scale,
@@ -130,16 +131,16 @@ pub const Game = struct {
     }
     fn scaleRect(self: *const Game, r: Rect) Rect {
         return .{
-            .x = r.x * self.scale + @divTrunc(self.winW - self.gameW * self.scale, 2),
-            .y = r.y * self.scale + @divTrunc(self.winH - self.gameH * self.scale, 2),
+            .x = r.x * self.scale + @divTrunc(self.winW - self.w * self.scale, 2),
+            .y = r.y * self.scale + @divTrunc(self.winH - self.h * self.scale, 2),
             .w = r.w * self.scale,
             .h = r.h * self.scale,
         };
     }
     fn unscalePoint(self: *const Game, x: SUnit, y: SUnit) struct { x: SUnit, y: SUnit } {
         return .{
-            .x = @divTrunc(x - @divTrunc(self.winW - self.gameW * self.scale, 2), self.scale),
-            .y = @divTrunc(y - @divTrunc(self.winH - self.gameH * self.scale, 2), self.scale),
+            .x = @divTrunc(x - @divTrunc(self.winW - self.w * self.scale, 2), self.scale),
+            .y = @divTrunc(y - @divTrunc(self.winH - self.h * self.scale, 2), self.scale),
         };
     }
     fn loadTextureFromRGBA(self: *const Game, pixels: []const u8, w: UUnit, h: UUnit) SDL_Error!Texture {
@@ -176,7 +177,7 @@ pub const Game = struct {
 
         // Draw borders
         self.setColor(borderColor);
-        const vp = self.scaleRect(.{ .x = 0, .y = 0, .w = self.gameW, .h = self.gameH });
+        const vp = self.scaleRect(.{ .x = 0, .y = 0, .w = self.w, .h = self.h });
         _ = c.SDL_RenderFillRect(self.rnd, &.{ .x = 0, .y = 0, .w = self.winW, .h = @intCast(UUnit, vp.y) });
         _ = c.SDL_RenderFillRect(self.rnd, &.{ .x = 0, .y = vp.y + vp.h, .w = self.winW, .h = self.winH - @intCast(UUnit, vp.y) });
         _ = c.SDL_RenderFillRect(self.rnd, &.{ .x = vp.x + vp.w, .y = vp.y, .w = self.winW - @intCast(UUnit, vp.x), .h = self.winH - @intCast(UUnit, vp.y) });
@@ -196,17 +197,20 @@ pub const Game = struct {
         _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x - outline, y - outline, outline, h + outline * 2).toSDL());
         _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x + w, y - outline, outline, h + outline * 2).toSDL());
     }
+    pub fn drawTexture(self: *Game, tx: *c.SDL_Texture, x: SUnit, y: SUnit, w: UUnit, h: UUnit, options: DrawOptions) void {
+        // TODO: this trusts that the user has perfect scaling of width and height or it will render incorrectly, maybe there's a better approach?
+        // TODO: very similar to `drawSprite`, try to deduplicate some code
+        _ = c.SDL_SetTextureAlphaMod(tx, options.color.a);
+        _ = c.SDL_SetTextureColorMod(tx, options.color.r, options.color.g, options.color.b);
+        const flip = (if (options.flipX) c.SDL_FLIP_HORIZONTAL else 0) | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else 0);
+        _ = c.SDL_RenderCopyEx(self.rnd, tx, null, &self.scaleRect(.{ .x = x, .y = y, .w = w, .h = h }).toSDL(), 0, null, @intToEnum(c.SDL_RendererFlip, flip));
+    }
     pub fn drawSprite(self: *Game, sprite: Sprite, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
+        // TODO: error on non-perfect int scaling
         _ = c.SDL_SetTextureAlphaMod(sprite.atlas.tx, options.color.a);
         _ = c.SDL_SetTextureColorMod(sprite.atlas.tx, options.color.r, options.color.g, options.color.b);
-        // TODO: error on non-perfect int scaling
         const flip = (if (options.flipX) c.SDL_FLIP_HORIZONTAL else 0) | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else 0);
-        const rect = Rect{
-            .x = x,
-            .y = y,
-            .w = sprite.srcRect.w * scale,
-            .h = sprite.srcRect.h * scale,
-        };
+        const rect = Rect{ .x = x, .y = y, .w = sprite.srcRect.w * scale, .h = sprite.srcRect.h * scale };
         _ = c.SDL_RenderCopyEx(self.rnd, sprite.atlas.tx, &sprite.srcRect.toSDL(), &self.scaleRect(rect).toSDL(), 0, null, @intToEnum(c.SDL_RendererFlip, flip));
     }
     pub fn drawAnim(self: *Game, animState: *AnimState, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
@@ -245,12 +249,12 @@ pub const Game = struct {
                     if (e.window.event == c.SDL_WINDOWEVENT_RESIZED) {
                         self.winW = @intCast(UUnit, e.window.data1);
                         self.winH = @intCast(UUnit, e.window.data2);
-                        self.scale = std.math.min(@divTrunc(self.winW, self.gameW), @divTrunc(self.winH, self.gameH));
+                        self.scale = std.math.min(@divTrunc(self.winW, self.w), @divTrunc(self.winH, self.h));
                         if (self.scale == 0) {
                             std.log.warn("Window too small!", .{});
                             // TODO: rather than doing this (which will make the game work but render incorrectly), make the window red or something
-                            self.winW = self.gameW;
-                            self.winH = self.gameH;
+                            self.winW = self.w;
+                            self.winH = self.h;
                             self.scale = 1;
                         }
                     }
