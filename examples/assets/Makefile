@@ -1,4 +1,4 @@
-output.bin: $(wildcard src/*)
+output.bin: $(wildcard src/*.*)
 	../../compile_assets.py $@ $^
 
 .PHONY: clean

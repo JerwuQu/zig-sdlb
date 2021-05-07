@@ -228,6 +228,21 @@ pub const Game = struct {
         }
         self.drawSprite(animState.anim.frames[animState.currentFrame].sprite, x, y, scale, options);
     }
+    pub fn drawMap(self: *Game, map: *const Map, x: SUnit, y: UUnit, scale: UUnit) void {
+        var ty: usize = 0;
+        while (ty < map.w) : (ty += 1) {
+            var tx: usize = 0;
+            while (tx < map.w) : (tx += 1) {
+                // TODO: skip those out of bounds
+                for (map.layers) |layer| {
+                    const tile = layer[ty * map.w + tx];
+                    if (tile > 0) {
+                        self.drawSprite(map.tiles[tile - 1], x + @intCast(SUnit, tx * map.tileW * scale), y + @intCast(SUnit, ty * map.tileH * scale), scale, .{});
+                    }
+                }
+            }
+        }
+    }
 
     /// Returns true to keep running, false to exit
     pub fn loop(self: *Game) bool {
@@ -392,6 +407,36 @@ pub const Game = struct {
             byteI += sz + 4;
         }
 
+        // Load maps
+        inline for (ass.mapNames) |name| {
+            const mapWidth = std.mem.readIntSliceBig(u16, assZ[byteI .. byteI + 2]);
+            const mapHeight = std.mem.readIntSliceBig(u16, assZ[byteI + 2 .. byteI + 4]);
+            const layerCount = std.mem.readIntSliceBig(u16, assZ[byteI + 4 .. byteI + 6]);
+            byteI += 6;
+            @field(assets.maps, name).w = mapWidth;
+            @field(assets.maps, name).h = mapHeight;
+            @field(assets.maps, name).tiles = @field(assets.sheets, name ++ "_tiles");
+            @field(assets.maps, name).tileW = @field(assets.maps, name).tiles[0].srcRect.w;
+            @field(assets.maps, name).tileH = @field(assets.maps, name).tiles[0].srcRect.h;
+
+            var layers = try self.alloc.alloc([]const u16, layerCount);
+            var i: usize = 0;
+            while (i < layerCount) : (i += 1) {
+                var layer = try self.alloc.alloc(u16, mapWidth * mapHeight);
+                std.mem.set(u16, layer, 0);
+                var y: usize = 0;
+                while (y < mapWidth) : (y += 1) {
+                    var x: usize = 0;
+                    while (x < mapHeight) : (x += 1) {
+                        layer[y * mapWidth + x] = std.mem.readIntSliceBig(u16, assZ[byteI .. byteI + 2]);
+                        byteI += 2;
+                    }
+                }
+                layers[i] = layer;
+            }
+            @field(assets.maps, name).layers = layers;
+        }
+
         return assets;
     }
 };
@@ -402,6 +447,7 @@ const AssetMetadata = struct {
     sheetNames: []const []const u8,
     animNames: []const []const u8,
     soundNames: []const []const u8,
+    mapNames: []const []const u8,
     decompressedDataSize: u32,
     compressedData: []const u8,
 
@@ -426,6 +472,7 @@ const AssetMetadata = struct {
         const sheetNames = parseNames(data, &byteI);
         const animNames = parseNames(data, &byteI);
         const soundNames = parseNames(data, &byteI);
+        const mapNames = parseNames(data, &byteI);
 
         const decompressedDataSize = std.mem.readIntSliceBig(u32, data[byteI .. byteI + 4]);
         const compressedDataSize = std.mem.readIntSliceBig(u32, data[byteI + 4 .. byteI + 8]);
@@ -437,6 +484,7 @@ const AssetMetadata = struct {
             .sheetNames = sheetNames,
             .animNames = animNames,
             .soundNames = soundNames,
+            .mapNames = mapNames,
             .compressedData = data[byteI .. byteI + compressedDataSize],
             .decompressedDataSize = decompressedDataSize,
         };
@@ -452,6 +500,7 @@ pub fn assetsType(comptime assetBin: []const u8) type {
         sheets: makeStruct(ass.sheetNames, []const Sprite, null),
         anims: makeStruct(ass.animNames, Anim, null),
         sounds: makeStruct(ass.soundNames, []const u8, null),
+        maps: makeStruct(ass.mapNames, Map, null),
 
         pub fn deinit(self: *@This()) void {
             for (self.atlases) |_, i| {
@@ -466,6 +515,12 @@ pub fn assetsType(comptime assetBin: []const u8) type {
             }
             inline for (ass.soundNames) |name| {
                 self.alloc.free(@field(self.sounds, name));
+            }
+            inline for (ass.mapNames) |name| {
+                for (@field(self.maps, name).layers) |layer| {
+                    self.alloc.free(layer);
+                }
+                self.alloc.free(@field(self.maps, name).layers);
             }
             self.* = undefined;
         }
@@ -515,6 +570,15 @@ pub const AnimState = struct {
     nextAnim: ?*const Anim = null,
     currentFrame: usize = 0,
     frameTime: Tick = 0,
+};
+
+pub const Map = struct {
+    w: u16,
+    h: u16,
+    tileW: u16,
+    tileH: u16,
+    layers: []const []const u16,
+    tiles: []const Sprite, // set to `<map name> ++ "_tiles"`
 };
 
 /// Convenience function for not having to create the KeyStates struct yourself

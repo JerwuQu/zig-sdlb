@@ -10,7 +10,7 @@ Mostly made for usage in gamejams to reduce time spent on boilerplate for asset 
 
 - Automatic integer scaling of pixels, with borders to maintain aspect ratio
 - Script for converting assets for embedding into the executable
-- Easy usage of images (png), spritesheets (png), animations (aseprite), and sounds (opus)
+- Easy usage of images (png), spritesheets (png), animations (aseprite), sounds (opus), and maps with tilesheets (Tiled)
 - Very basic keymap config to allow users to reconfigure default bindings
 
 ### Not in scope
@@ -40,6 +40,7 @@ Pay attention to which of these need a license note in your game!
 - Pillow
 - `zstd`
 - `aseprite` (if you have any such files)
+- `tiled` (if you have any such files)
 
 ## License
 

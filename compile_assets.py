@@ -51,6 +51,7 @@ images = []
 sheets = []
 anims = []
 sounds = [] # NOTE: sounds are just raw data with sugar
+maps = []
 
 def atlas_pack(img):
 	if not atlases:
@@ -108,12 +109,62 @@ for filename in filenames:
 				frames = [(frame_rects[i], asejson['frames'][i]['duration']) for i in range(anim['from'], anim['to'] + 1)]
 				anims.append((name + '_' + anim['name'], frames))
 
+		os.remove(tmppng)
+
 	elif ext == '.opus':
 		with open(filename, 'rb') as f:
 			sounds.append((name, f.read())) # NOTE: takes up a bit of RAM. Improve?
 
+	elif ext == '.tmx':
+		tmpjson = tempfile.mktemp(suffix='.json')
+		subprocess.run(['tiled', '--export-map', '--embed-tilesets', filename, tmpjson])
+		with open(tmpjson, 'r') as f:
+			tiledinfo = json.loads(f.read())
+
+		os.remove(tmpjson)
+
+		# TODO: support sharing tilesets between multiple maps. currently they'd be duplicated.
+		tileset = tiledinfo['tilesets'][0] # TODO: more than one tileset
+		tw = tileset["tilewidth"] # NOTE: ÖL
+		th = tileset["tileheight"]
+		tiles = []
+		if 'image' in tileset: # Spritesheet tileset
+			imgpath = tileset['image']
+
+			# NOTE: there's currently some kind of bug related to when resolving paths using Tiled from WSL
+			#       try to fix :)
+			if not os.path.isfile(imgpath):
+				if imgpath.startswith('../'):
+					imgpath = imgpath[2:]
+				else:
+					print('no clue what to do, quitting')
+					exit(1)
+
+			x_count = int(tileset['imagewidth'] / tw)
+			y_count = int(tileset['imageheight'] / th)
+			with Image.open(imgpath) as img:
+				for y in range(y_count):
+					for x in range(x_count):
+						tiles.append(atlas_pack(img.crop((x * tw, y * th, (x + 1) * tw, (y + 1) * th))))
+
+		else: # Multi-file tilesheet
+			# paths = [os.path.join(os.path.dirname(tmpjson), tile['image']) for tile in tileset['tiles']]
+			# print(paths)
+			print('file based tilesheets not supported')
+			exit(1)
+
+		sheets.append((name + '_tiles', tiles))
+		layers = []
+		for l in tiledinfo['layers']:
+			if l['width'] != tiledinfo['width'] or l['height'] != tiledinfo['height']:
+				print('layer size not equal to map size')
+				exit(1)
+			layers.append(l['data'])
+
+		maps.append((name, tiledinfo['width'], tiledinfo['height'], layers))
+
 	else:
-		print(f'unknown extension {ext}')
+		print(f'unknown extension "{ext}"')
 		exit(1)
 
 def str_bytes(str):
@@ -148,6 +199,11 @@ output += struct.pack('>H', len(sounds))
 for sound in sounds:
 	output += str_bytes(sound[0])
 
+# Map names
+output += struct.pack('>H', len(maps))
+for m in maps:
+	output += str_bytes(m[0])
+
 # Compressed section
 compressed = bytearray()
 
@@ -174,6 +230,13 @@ for anim in anims:
 # Sound data
 for sound in sounds:
 	compressed += struct.pack('>I', len(sound[1])) + sound[1]
+
+# Map data
+for m in maps:
+	compressed += struct.pack('>HHH', m[1], m[2], len(m[3]))
+	for layer in m[3]:
+		for i in range(m[1] * m[2]):
+			compressed += struct.pack('>H', layer[i])
 
 # Compress
 compressed_data = subprocess.Popen(['zstd', '-19'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT).communicate(compressed)[0]
