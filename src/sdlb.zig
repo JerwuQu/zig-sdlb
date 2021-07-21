@@ -91,7 +91,7 @@ pub const Game = struct {
             return SDL_Error.SDL_CreateRenderer;
         }
 
-        if (c.SDL_SetRenderDrawBlendMode(rnd, .SDL_BLENDMODE_BLEND) != 0) {
+        if (c.SDL_SetRenderDrawBlendMode(rnd, c.SDL_BLENDMODE_BLEND) != 0) {
             return SDL_Error.SDL_SetRenderDrawBlendMode;
         }
 
@@ -190,28 +190,23 @@ pub const Game = struct {
         self.setColor(color);
         _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(rect).toSDL());
     }
-    pub fn drawRectOutline(self: *Game, color: Color, outline: UUnit, rect: Rect) void {
-        self.setColor(color);
-        _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x, y - outline, w, outline).toSDL());
-        _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x, y + h, w, outline).toSDL());
-        _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x - outline, y - outline, outline, h + outline * 2).toSDL());
-        _ = c.SDL_RenderFillRect(self.rnd, &self.scaleRect(x + w, y - outline, outline, h + outline * 2).toSDL());
-    }
     pub fn drawTexture(self: *Game, tx: *c.SDL_Texture, x: SUnit, y: SUnit, w: UUnit, h: UUnit, options: DrawOptions) void {
         // TODO: this trusts that the user has perfect scaling of width and height or it will render incorrectly, maybe there's a better approach?
         // TODO: very similar to `drawSprite`, try to deduplicate some code
         _ = c.SDL_SetTextureAlphaMod(tx, options.color.a);
         _ = c.SDL_SetTextureColorMod(tx, options.color.r, options.color.g, options.color.b);
-        const flip = (if (options.flipX) c.SDL_FLIP_HORIZONTAL else 0) | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else 0);
-        _ = c.SDL_RenderCopyEx(self.rnd, tx, null, &self.scaleRect(.{ .x = x, .y = y, .w = w, .h = h }).toSDL(), 0, null, @intToEnum(c.SDL_RendererFlip, flip));
+        const flip = @bitCast(c.SDL_RendererFlip, (if (options.flipX) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE)
+                | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE));
+        _ = c.SDL_RenderCopyEx(self.rnd, tx, null, &self.scaleRect(.{ .x = x, .y = y, .w = w, .h = h }).toSDL(), 0, null, flip);
     }
     pub fn drawSprite(self: *Game, sprite: Sprite, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
         // TODO: error on non-perfect int scaling
         _ = c.SDL_SetTextureAlphaMod(sprite.atlas.tx, options.color.a);
         _ = c.SDL_SetTextureColorMod(sprite.atlas.tx, options.color.r, options.color.g, options.color.b);
-        const flip = (if (options.flipX) c.SDL_FLIP_HORIZONTAL else 0) | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else 0);
+        const flip = @bitCast(c.SDL_RendererFlip, (if (options.flipX) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE)
+                | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE));
         const rect = Rect{ .x = x, .y = y, .w = sprite.srcRect.w * scale, .h = sprite.srcRect.h * scale };
-        _ = c.SDL_RenderCopyEx(self.rnd, sprite.atlas.tx, &sprite.srcRect.toSDL(), &self.scaleRect(rect).toSDL(), 0, null, @intToEnum(c.SDL_RendererFlip, flip));
+        _ = c.SDL_RenderCopyEx(self.rnd, sprite.atlas.tx, &sprite.srcRect.toSDL(), &self.scaleRect(rect).toSDL(), 0, null, flip);
     }
     pub fn drawAnim(self: *Game, animState: *AnimState, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
         // TODO: math
@@ -317,7 +312,7 @@ pub const Game = struct {
     }
     /// To be ran after `Game.loop`. Will updated the given KeyStates structs according to `keybinds`.
     pub fn updateKeys(self: *Game, comptime KeyStates: type, keybinds: anytype, held: ?*KeyStates, pressed: ?*KeyStates, released: ?*KeyStates) void {
-        comptime const keys = std.meta.fieldNames(KeyStates);
+        const keys = comptime std.meta.fieldNames(KeyStates);
         inline for (keys) |key| {
             if (self.keyUpdates.pressed.contains(@field(keybinds, key))) {
                 if (held == null or !@field(held.?, key)) {

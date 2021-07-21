@@ -161,9 +161,9 @@ pub const AudioDevice = struct {
         std.mem.set(f32, buf, 0);
         var soundIter = self.sounds.iterator();
         while (soundIter.next()) |kv| {
-            kv.value.addSamples(buf) catch continue;
-            if (kv.value.deletePending) {
-                _ = self.sounds.remove(kv.key);
+            kv.value_ptr.addSamples(buf) catch continue;
+            if (kv.value_ptr.deletePending) {
+                _ = self.sounds.remove(kv.key_ptr.*);
             }
         }
     }

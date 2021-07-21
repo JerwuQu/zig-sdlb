@@ -19,7 +19,7 @@ pub fn main() !void {
 
     var lightingMap = c.SDL_CreateTexture(game.rnd, c.SDL_PIXELFORMAT_RGBA8888, c.SDL_TEXTUREACCESS_STREAMING, game.w, game.h) orelse unreachable;
     defer c.SDL_DestroyTexture(lightingMap);
-    _ = c.SDL_SetTextureBlendMode(lightingMap, .SDL_BLENDMODE_BLEND);
+    _ = c.SDL_SetTextureBlendMode(lightingMap, c.SDL_BLENDMODE_BLEND);
 
     while (game.loop()) {
         game.clear(sdlb.RGB(0, 0, 0));

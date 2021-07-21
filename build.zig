@@ -32,7 +32,7 @@ fn buildExample(b: *std.build.Builder, opt: ExOpt, comptime name: []const u8) vo
     }
     example.setTarget(opt.target);
     example.setBuildMode(opt.mode);
-    example.addPackage(.{ .name = "sdlb", .path = "src/sdlb.zig" });
+    example.addPackagePath("sdlb", "src/sdlb.zig");
     example.linkLibC();
     if (opt.winCompile) {
         // Windows libs required for SDL2
