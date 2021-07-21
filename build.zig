@@ -1,68 +1,53 @@
 const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
-    const winCompile = b.option(bool, "windows", "Cross-compile to Windows") orelse false;
+    const winCompile = b.option(bool, "windows", "Cross-compile to Windows") orelse false; // TODO: check for build target rather than setting it
     const target = if (winCompile) std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu } else b.standardTargetOptions(.{});
+    const mode = b.standardReleaseOptions();
 
-    const exOpt = ExOpt{
-        .mode = b.standardReleaseOptions(),
-        .target = target,
-        .winCompile = winCompile,
-        .skipAssetMake = b.option(bool, "skip-asset-make", "Don't build assets") orelse false,
-    };
-
-    // Example
-    buildExample(b, exOpt, "general");
-    buildExample(b, exOpt, "bitmap-font");
-    buildExample(b, exOpt, "pixel-lighting");
-}
-
-const ExOpt = struct {
-    mode: std.builtin.Mode,
-    target: std.zig.CrossTarget,
-    winCompile: bool,
-    skipAssetMake: bool,
-};
-
-fn buildExample(b: *std.build.Builder, opt: ExOpt, comptime name: []const u8) void {
-    const example = b.addExecutable("example-" ++ name, "examples/" ++ name ++ ".zig");
-    if (!opt.skipAssetMake) {
+    // Example runner
+    const exrunner = b.addExecutable("examples", "examples/_examples_.zig");
+    const skipAssetMake = b.option(bool, "skip-asset-make", "Don't build example assets") orelse false;
+    if (!skipAssetMake) {
         const makeAssets = b.addSystemCommand(&.{ "make", "-C", "examples/assets" });
-        example.step.dependOn(&makeAssets.step);
+        exrunner.step.dependOn(&makeAssets.step);
     }
-    example.setTarget(opt.target);
-    example.setBuildMode(opt.mode);
-    example.addPackagePath("sdlb", "src/sdlb.zig");
-    example.linkLibC();
-    if (opt.winCompile) {
+    exrunner.setTarget(target);
+    exrunner.setBuildMode(mode);
+    exrunner.addPackagePath("sdlb", "src/sdlb.zig");
+    exrunner.linkLibC();
+    if (winCompile) {
         // Windows libs required for SDL2
-        example.linkSystemLibrary("gdi32");
-        example.linkSystemLibrary("winmm");
-        example.linkSystemLibrary("imm32");
-        example.linkSystemLibrary("ole32");
-        example.linkSystemLibrary("oleaut32");
-        example.linkSystemLibrary("version");
-        example.linkSystemLibrary("setupapi");
+        exrunner.linkSystemLibrary("gdi32");
+        exrunner.linkSystemLibrary("winmm");
+        exrunner.linkSystemLibrary("imm32");
+        exrunner.linkSystemLibrary("ole32");
+        exrunner.linkSystemLibrary("oleaut32");
+        exrunner.linkSystemLibrary("version");
+        exrunner.linkSystemLibrary("setupapi");
 
         // Static MinGW libs
-        example.addIncludeDir("mingw64/include");
-        example.addIncludeDir("mingw64/include/SDL2");
-        example.addIncludeDir("mingw64/include/opus");
-        example.addObjectFile("mingw64/lib/libSDL2.a");
-        example.addObjectFile("mingw64/lib/libzstd.a");
-        example.addObjectFile("mingw64/lib/libogg.a");
-        example.addObjectFile("mingw64/lib/libopus.a");
-        example.addObjectFile("mingw64/lib/libopusfile.a");
+        exrunner.addIncludeDir("mingw64/include");
+        exrunner.addIncludeDir("mingw64/include/SDL2");
+        exrunner.addIncludeDir("mingw64/include/opus");
+        exrunner.addObjectFile("mingw64/lib/libSDL2.a");
+        exrunner.addObjectFile("mingw64/lib/libzstd.a");
+        exrunner.addObjectFile("mingw64/lib/libogg.a");
+        exrunner.addObjectFile("mingw64/lib/libopus.a");
+        exrunner.addObjectFile("mingw64/lib/libopusfile.a");
     } else {
-        example.addIncludeDir("SDL2");
-        example.linkSystemLibrary("SDL2");
-        example.linkSystemLibrary("zstd");
-        example.linkSystemLibrary("opusfile");
+        exrunner.addIncludeDir("SDL2");
+        exrunner.linkSystemLibrary("SDL2");
+        exrunner.linkSystemLibrary("zstd");
+        exrunner.linkSystemLibrary("opusfile");
     }
-    example.install();
+    exrunner.install();
 
-    const run_ex_cmd = example.run();
-    run_ex_cmd.step.dependOn(&example.install_step.?.step);
-    const run_ex_step = b.step("example-" ++ name, "Run the '" ++ name ++ "' example");
+    const run_ex_cmd = exrunner.run();
+    run_ex_cmd.step.dependOn(&exrunner.install_step.?.step);
+    if (b.args) |args| {
+        run_ex_cmd.addArgs(args);
+    }
+    const run_ex_step = b.step("examples", "Run the example runner");
     run_ex_step.dependOn(&run_ex_cmd.step);
 }
