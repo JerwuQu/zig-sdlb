@@ -126,10 +126,10 @@ pub const Game = struct {
     }
 
     // -- Private methods --
-    fn setColor(self: *const Game, color: Color) void {
+    inline fn setColor(self: *const Game, color: Color) void {
         _ = c.SDL_SetRenderDrawColor(self.rnd, color.r, color.g, color.b, color.a);
     }
-    fn scaleRect(self: *const Game, r: Rect) Rect {
+    inline fn scaleRect(self: *const Game, r: Rect) Rect {
         return .{
             .x = r.x * self.scale + @divTrunc(self.winW - self.w * self.scale, 2),
             .y = r.y * self.scale + @divTrunc(self.winH - self.h * self.scale, 2),
@@ -137,7 +137,7 @@ pub const Game = struct {
             .h = r.h * self.scale,
         };
     }
-    fn unscalePoint(self: *const Game, x: SUnit, y: SUnit) struct { x: SUnit, y: SUnit } {
+    inline fn unscalePoint(self: *const Game, x: SUnit, y: SUnit) struct { x: SUnit, y: SUnit } {
         return .{
             .x = @divTrunc(x - @divTrunc(self.winW - self.w * self.scale, 2), self.scale),
             .y = @divTrunc(y - @divTrunc(self.winH - self.h * self.scale, 2), self.scale),
@@ -155,6 +155,17 @@ pub const Game = struct {
             return SDL_Error.SDL_CreateTextureFromSurface;
         }
         return Texture{ .tx = tx.?, .w = w, .h = h };
+    }
+    inline fn renderTextureOptions(self: *Game, tx: *c.SDL_Texture, srcRect: ?URect, dstRect: ?Rect, options: *const DrawOptions) void {
+        _ = c.SDL_SetTextureAlphaMod(tx, options.color.a);
+        _ = c.SDL_SetTextureColorMod(tx, options.color.r, options.color.g, options.color.b);
+        const flip = @bitCast(c.SDL_RendererFlip,
+                (if (options.flipX) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE)
+                | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE));
+        _ = c.SDL_RenderCopyEx(self.rnd, tx,
+                if (srcRect == null) null else &srcRect.?.toSDL(),
+                if (dstRect == null) null else &self.scaleRect(dstRect.?).toSDL(),
+                0, null, flip);
     }
 
     // -- Public methods --
@@ -192,21 +203,11 @@ pub const Game = struct {
     }
     pub fn drawTexture(self: *Game, tx: *c.SDL_Texture, x: SUnit, y: SUnit, w: UUnit, h: UUnit, options: DrawOptions) void {
         // TODO: this trusts that the user has perfect scaling of width and height or it will render incorrectly, maybe there's a better approach?
-        // TODO: very similar to `drawSprite`, try to deduplicate some code
-        _ = c.SDL_SetTextureAlphaMod(tx, options.color.a);
-        _ = c.SDL_SetTextureColorMod(tx, options.color.r, options.color.g, options.color.b);
-        const flip = @bitCast(c.SDL_RendererFlip, (if (options.flipX) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE)
-                | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE));
-        _ = c.SDL_RenderCopyEx(self.rnd, tx, null, &self.scaleRect(.{ .x = x, .y = y, .w = w, .h = h }).toSDL(), 0, null, flip);
+        self.renderTextureOptions(tx, null, Rect{ .x = x, .y = y, .w = w, .h = h }, &options);
     }
     pub fn drawSprite(self: *Game, sprite: Sprite, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
-        // TODO: error on non-perfect int scaling
-        _ = c.SDL_SetTextureAlphaMod(sprite.atlas.tx, options.color.a);
-        _ = c.SDL_SetTextureColorMod(sprite.atlas.tx, options.color.r, options.color.g, options.color.b);
-        const flip = @bitCast(c.SDL_RendererFlip, (if (options.flipX) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE)
-                | (if (options.flipY) c.SDL_FLIP_HORIZONTAL else c.SDL_FLIP_NONE));
-        const rect = Rect{ .x = x, .y = y, .w = sprite.srcRect.w * scale, .h = sprite.srcRect.h * scale };
-        _ = c.SDL_RenderCopyEx(self.rnd, sprite.atlas.tx, &sprite.srcRect.toSDL(), &self.scaleRect(rect).toSDL(), 0, null, flip);
+        const dstRect = Rect{ .x = x, .y = y, .w = sprite.srcRect.w * scale, .h = sprite.srcRect.h * scale };
+        self.renderTextureOptions(sprite.atlas.tx, sprite.srcRect, dstRect, &options);
     }
     pub fn drawAnim(self: *Game, animState: *AnimState, x: SUnit, y: SUnit, scale: UUnit, options: DrawOptions) void {
         // TODO: math
@@ -578,7 +579,11 @@ pub const Map = struct {
 
 /// Convenience function for not having to create the KeyStates struct yourself
 pub fn makeKeyStates(comptime keybindContainerType: type) type {
-    // TODO: verify that all value types are Keycode
+    for (std.meta.fields(keybindContainerType)) |field| {
+        if (field.field_type != Keycode) {
+            @compileError("field '" ++ field.name ++ "' isn't of type Keycode");
+        }
+    }
     return makeStruct(std.meta.fieldNames(keybindContainerType), bool, false);
 }
 

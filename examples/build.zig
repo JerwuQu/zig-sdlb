@@ -1,8 +1,11 @@
 const std = @import("std");
 
 pub fn build(b: *std.build.Builder) !void {
-    const winCompile = b.option(bool, "windows", "Cross-compile to Windows") orelse false; // TODO: check for build target rather than setting it
-    const target = if (winCompile) std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu } else b.standardTargetOptions(.{});
+    // Working Windows target provided for convenience
+    const target = if (b.option(bool, "windows", "Cross-compile to Windows") orelse false)
+            std.zig.CrossTarget{ .cpu_arch = .x86_64, .os_tag = .windows, .abi = .gnu }
+            else b.standardTargetOptions(.{});
+
     const mode = b.standardReleaseOptions();
 
     // Example runner
@@ -19,7 +22,6 @@ pub fn build(b: *std.build.Builder) !void {
     // vvvvvvv
     exe.addPackagePath("sdlb", "../src/sdlb.zig");
     exe.linkLibC();
-
     if (target.os_tag != null and target.os_tag.? == .windows) {
         if (target.abi.? != .gnu or target.cpu_arch.? != .x86_64) {
             std.log.err("windows target only supports x86 gnu", .{});
