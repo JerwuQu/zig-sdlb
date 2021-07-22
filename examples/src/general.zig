@@ -13,7 +13,7 @@ pub fn main() !void {
     var game = try sdlb.Game.create(alloc, "example", 64, 64);
     defer game.deinit();
 
-    var assets = try game.loadAssets(@embedFile("assets/output.bin"));
+    var assets = try game.loadAssets(@embedFile("../output.bin"));
     defer assets.deinit();
 
     var audioDevice = try sdlb.AudioDevice.openDefault(alloc);

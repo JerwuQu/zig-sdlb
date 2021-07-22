@@ -1,7 +1,7 @@
 const std = @import("std");
 const sdlb = @import("sdlb");
 
-const assetsBin = @embedFile("assets/output.bin");
+const assetsBin = @embedFile("../output.bin");
 const Assets = sdlb.assetsType(assetsBin);
 
 fn drawText(game: *sdlb.Game, assets: *Assets, str: []const u8, color: sdlb.Color, x: sdlb.SUnit, y: sdlb.SUnit) void {

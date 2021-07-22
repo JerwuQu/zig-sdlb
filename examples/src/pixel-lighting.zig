@@ -14,7 +14,7 @@ pub fn main() !void {
     var game = try sdlb.Game.create(alloc, "example", 64, 64);
     defer game.deinit();
 
-    var assets = try game.loadAssets(@embedFile("assets/output.bin"));
+    var assets = try game.loadAssets(@embedFile("../output.bin"));
     defer assets.deinit();
 
     var lightingMap = c.SDL_CreateTexture(game.rnd, c.SDL_PIXELFORMAT_RGBA8888, c.SDL_TEXTUREACCESS_STREAMING, game.w, game.h) orelse unreachable;

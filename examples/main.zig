@@ -2,9 +2,9 @@ const std = @import("std");
 
 pub fn main() !u8 {
     const examples = .{
-        .@"general" = @import("./general.zig"),
-        .@"bitmap-font" = @import("./bitmap-font.zig"),
-        .@"pixel-lighting" = @import("./pixel-lighting.zig"),
+        .@"general" = @import("src/general.zig"),
+        .@"bitmap-font" = @import("src/bitmap-font.zig"),
+        .@"pixel-lighting" = @import("src/pixel-lighting.zig"),
     };
 
     const args = try std.process.argsAlloc(std.heap.page_allocator);
