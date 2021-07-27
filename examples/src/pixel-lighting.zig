@@ -1,17 +1,15 @@
 const std = @import("std");
-const sdlb = @import("sdlb");
-const c = sdlb.c;
-usingnamespace sdlb.units;
+usingnamespace @import("sdlb");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = &gpa.allocator;
 
-    try sdlb.initSDL();
-    defer sdlb.deinitSDL();
+    try initSDL();
+    defer deinitSDL();
 
-    var game = try sdlb.Game.create(alloc, "example", 64, 64);
+    var game = try Game.create(alloc, "example", 64, 64);
     defer game.deinit();
 
     var assets = try game.loadAssets(@embedFile("../output.bin"));
@@ -22,7 +20,7 @@ pub fn main() !void {
     _ = c.SDL_SetTextureBlendMode(lightingMap, c.SDL_BLENDMODE_BLEND);
 
     while (game.loop()) {
-        game.clear(sdlb.RGB(0, 0, 0));
+        game.clear(RGB(0, 0, 0));
         game.drawSprite(assets.images.cooldude, 0, 0, 4, .{});
 
         // Move light source

@@ -1,6 +1,5 @@
 const std = @import("std");
 pub const c = @import("./c.zig").c;
-pub const units = @import("./units.zig");
 pub usingnamespace @import("./units.zig");
 pub usingnamespace @import("./audio.zig");
 
@@ -237,6 +236,23 @@ pub const Game = struct {
                     }
                 }
             }
+        }
+    }
+    // TODO: "drawTextEx" version that returns location of where the text stopped to make continuation possible
+    pub fn drawText(game: *Game, font: *const Font, str: []const u8, color: Color, x: SUnit, y: SUnit, scale: UUnit) void {
+        var tx: SUnit = 0;
+        var ty: SUnit = 0;
+        var iter = std.unicode.Utf8Iterator{.bytes = str, .i = 0};
+        while (iter.nextCodepoint()) |cp| {
+            const idx = font.mapGlyph(cp);
+            if (idx == null) {
+                // TODO: handle other cases
+                tx += font.glyphW * scale;
+            } else {
+                game.drawSprite(font.sheet[idx.?], x + tx, y + ty, scale, .{ .color = color });
+                tx += (font.glyphW + font.marginX) * scale;
+            }
+            // TODO: wrapping
         }
     }
 
@@ -575,6 +591,15 @@ pub const Map = struct {
     tileH: u16,
     layers: []const []const u16,
     tiles: []const Sprite, // set to `<map name> ++ "_tiles"`
+};
+
+pub const Font = struct {
+    sheet: []const Sprite,
+    glyphW: UUnit,
+    glyphH: UUnit,
+    marginX: UUnit = 1,
+    marginY: UUnit = 1,
+    mapGlyph: fn(codepoint: u21) ?usize, // TODO: negative enum for newline and space
 };
 
 /// Convenience function for not having to create the KeyStates struct yourself
